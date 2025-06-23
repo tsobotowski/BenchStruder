@@ -1,11 +1,9 @@
 #include <LiquidCrystal.h>
 #include <NEXNTC.h>
-#include <PID_v2.h>
 
 #define TEMP_MIN 200
 #define TEMP_MAX 280
 #define HOLD_TIME 1000  // Length of button press in ms to be read as a hold
-#define PWM_FREQ 1000; //PWM frequency for relay output
 
 NTCThermistor thermistor(
   A0,       // Analog pin
@@ -14,9 +12,6 @@ NTCThermistor thermistor(
   25.0,     // Nominal temperature (°C)
   3950.0    // Beta coefficient
 );
-
-double Kp = 2, Ki = 5, Kd = 1;
-PID_v2 myPID(Kp, Ki, Kd, PID::Direct);
 
 const int rs = 7, en = 6, d4 = 5, d5 = 4, d6 = 3, d7 = 2, heater = A1, extruder = A2, up_heat = A3, down_extrude = A4;
 
@@ -38,17 +33,6 @@ enum modes {
 bool up_press = false, dn_press = false, up_hold = false, dn_hold = false;
 
 modes current_mode;
-
-void run_PID(){ // Run the PID controller
-  const double output = myPID.Run(temp); //PID output
-  static unsigned long frequency = PWM_FREQ;
-  //Convert to duty cycle 
-
-  //non blocking duty cycle counter
-
-  //Switch relay accordingly
-
-}
 
 void read_buttons() {  // TODO: Make non-blocking
   unsigned long start_time;
@@ -87,12 +71,6 @@ bool start() {       //Set up
   lcd.begin(16, 2);  //Add handling
   lcd.setCursor(0, 0);
   lcd.print("Starting");
-
-  // Start PID
-  myPID.Start(
-    temp,  // input
-    0,                      // current output
-    extrusion_temp);                   // setpoint
 
   // Set up thermistor
   thermistor.begin();
