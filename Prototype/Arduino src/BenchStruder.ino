@@ -5,6 +5,7 @@
 #define TEMP_MIN 200
 #define TEMP_MAX 280
 #define HOLD_TIME 1000  // Length of button press in ms to be read as a hold
+#define PWM_FREQ 1000; //PWM frequency for relay output
 
 NTCThermistor thermistor(
   A0,       // Analog pin
@@ -17,7 +18,7 @@ NTCThermistor thermistor(
 double Kp = 2, Ki = 5, Kd = 1;
 PID_v2 myPID(Kp, Ki, Kd, PID::Direct);
 
-const int rs = 7, en = 6, d4 = 5, d5 = 4, d6 = 3, d7 = 2, heater = -1, extruder = -1, up_heat = A3, down_extrude = A4;
+const int rs = 7, en = 6, d4 = 5, d5 = 4, d6 = 3, d7 = 2, heater = A1, extruder = A2, up_heat = A3, down_extrude = A4;
 
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 float temp;
@@ -40,6 +41,12 @@ modes current_mode;
 
 void run_PID(){ // Run the PID controller
   const double output = myPID.Run(temp); //PID output
+  static unsigned long frequency = PWM_FREQ;
+  //Convert to duty cycle 
+
+  //non blocking duty cycle counter
+
+  //Switch relay accordingly
 
 }
 
@@ -96,6 +103,9 @@ bool start() {       //Set up
   pinMode(up_heat, INPUT);
   pinMode(down_extrude, INPUT);
 
+  pinMode(heater, OUTPUT);
+  pinMode(extruder, OUTPUT);
+
   delay(1000);
 
   lcd.clear();
@@ -119,11 +129,11 @@ void idle() {  //Idle state, heating is off
   lcd.print("C");
 
 
-  if (up_press && extrusion_temp < TEMP_MAX) {
+  if (up_press && temp_cursor < TEMP_MAX) {
     temp_cursor += 5;
     delay(200);
   }
-  if (dn_press && extrusion_temp > TEMP_MIN) {
+  if (dn_press && temp_cursor > TEMP_MIN) {
     temp_cursor -= 5;
     delay(200);
   }
@@ -155,7 +165,6 @@ void extrude() {
     extrusion_temp = 0;
     current_mode = IDLE;
   }
-}
 }
 
 void hot() {
