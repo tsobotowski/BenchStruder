@@ -1,30 +1,29 @@
 #include <LiquidCrystal.h>
 #include <NEXNTC.h>
 
-#define TEMP_MIN 200
-#define TEMP_MAX 280
+//Beginning of global variables
+#define TEMP_MIN 100 //Minimum heater tempreture
+#define TEMP_MAX 280 //Maximum heater tempreture
 #define HOLD_TIME 1000  // Length of button press in ms to be read as a hold
 
 NTCThermistor thermistor(
   A0,       // Analog pin
-  1000.0,   // Series resistor (Ohms)
-  10000.0,  // Thermistor nominal resistance at 25°C
-  25.0,     // Nominal temperature (°C)
-  3950.0    // Beta coefficient
+  4700.0,   // Series resistor (Ohms) Default: 1000
+  100000.0,  // Thermistor nominal resistance at 25°C Default: 10000
+  25.0,     // Nominal temperature (°C) Default: 25
+  4267.0    // Beta coefficient Default: 3950
 );
 
-const int rs = 7, en = 6, d4 = 5, d5 = 4, d6 = 3, d7 = 2, heater = A1, extruder = A2, up_heat = A3, down_extrude = A4;
+const int rs = 7, en = 6, d4 = 5, d5 = 4, d6 = 3, d7 = 2, heater = A1, extruder = A2, up_heat = A4, down_extrude = A3;
 
 LiquidCrystal lcd(rs, en, d4, d5, d6, d7);
 float temp;
-int extrusion_temp = 0;
+int extrusion_temp = 0; //Initialize extrusion temp as 0
 
 enum modes {
   IDLE,
-  SET,  //Allow user to set temperature
   HEAT,
   EXTRUDING,
-  HOT,
   RUNAWAY,  //Thermal runaway
   INITERR   //Initialization error
 };
@@ -32,7 +31,9 @@ enum modes {
 //global variables for button activity
 bool up_press = false, dn_press = false, up_hold = false, dn_hold = false;
 
-modes current_mode;
+modes current_mode; //Current mode of operation
+
+//End of global variables
 
 void read_buttons() {  // TODO: Make non-blocking
   unsigned long start_time;
@@ -68,6 +69,13 @@ void read_buttons() {  // TODO: Make non-blocking
 }
 
 bool start() {       //Set up
+  pinMode(heater, OUTPUT);
+  pinMode(extruder, OUTPUT);
+
+  //Make sure relays are off
+  digitalWrite(heater, HIGH);
+  digitalWrite(extruder, HIGH);
+
   lcd.begin(16, 2);  //Add handling
   lcd.setCursor(0, 0);
   lcd.print("Starting");
@@ -81,12 +89,11 @@ bool start() {       //Set up
   pinMode(up_heat, INPUT);
   pinMode(down_extrude, INPUT);
 
-  pinMode(heater, OUTPUT);
-  pinMode(extruder, OUTPUT);
-
-  delay(1000);
+  delay(1000); //Wait for a thermistor reading
 
   lcd.clear();
+
+  Serial.begin(9600);
 
   if ((temp = thermistor.readTemperatureC()) <= 0) {  //Catch disconnected thermistor
     return false;
@@ -96,7 +103,10 @@ bool start() {       //Set up
 }
 
 void idle() {  //Idle state, heating is off
-  static int temp_cursor = 200;
+  digitalWrite(heater, HIGH);
+  digitalWrite(extruder, HIGH);
+
+  static int temp_cursor = TEMP_MIN; //User tempreture selection, starts at minumum
   lcd.setCursor(0, 0);
   lcd.print("Idle  Temp: ");
   lcd.print((int)temp);
@@ -109,11 +119,9 @@ void idle() {  //Idle state, heating is off
 
   if (up_press && temp_cursor < TEMP_MAX) {
     temp_cursor += 5;
-    delay(200);
   }
   if (dn_press && temp_cursor > TEMP_MIN) {
     temp_cursor -= 5;
-    delay(200);
   }
 
   if (up_hold) {
@@ -132,6 +140,14 @@ void heat() {  //Heating state
   lcd.print(extrusion_temp);
   lcd.print("C");
 
+  //Simple bang-bang control
+  if(temp < (extrusion_temp - 10)){
+    digitalWrite(heater, LOW);
+  }
+  else if(temp > extrusion_temp){
+    digitalWrite(heater, HIGH);
+  }
+
   if (up_press) {
     extrusion_temp = 0;
     current_mode = IDLE;
@@ -140,7 +156,6 @@ void heat() {  //Heating state
 
 void extrude() {
   if (up_press) {
-    extrusion_temp = 0;
     current_mode = IDLE;
   }
 }
@@ -172,6 +187,8 @@ void setup() {
     current_mode = INITERR;
     return;
   }
+  //Serial connection to monitor tempreture control
+
   lcd.setCursor(0, 0);
   lcd.print("Startup OK");
   delay(1000);
@@ -181,6 +198,10 @@ void setup() {
 
 void loop() {
   temp = thermistor.readTemperatureC();
+
+  //Report temp
+  Serial.print(temp);
+
   read_buttons();
 
   switch (current_mode) {
@@ -192,9 +213,6 @@ void loop() {
       break;
     case EXTRUDING:
       extrude();
-      break;
-    case HOT:
-      hot();
       break;
     case INITERR:
       init_err();
